@@ -8,6 +8,8 @@ class TestPackageConan(ConanFile):
 
     def build(self):
         cmake = CMake(self)
+        if not self.options['asyncplusplus'].shared:
+            cmake.definitions["LIBASYNC_STATIC"] = True
         cmake.configure()
         cmake.build()
 
