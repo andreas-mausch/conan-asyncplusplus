@@ -1,32 +1,46 @@
 from conans import ConanFile, CMake, tools
+from conans.errors import ConanInvalidConfiguration
 import os
 
 
-class LibnameConan(ConanFile):
-    name = "libname"
-    description = "Keep it short"
-    topics = ("conan", "libname", "logging")
-    url = "https://github.com/bincrafters/conan-libname"
-    homepage = "https://github.com/original_author/original_lib"
-    license = "MIT"  # Indicates license type of the packaged library; please use SPDX Identifiers https://spdx.org/licenses/
+class AsynqroConan(ConanFile):
+    name = "asyncplusplus"
+    description = "Async++ concurrency framework for C++11"
+    topics = ("conan", "asyncplusplus", "future", "promise")
+    url = "https://github.com/andreas-mausch/conan-asyncplusplus"
+    homepage = "https://github.com/Amanieu/asyncplusplus"
+    license = "MIT"
     exports_sources = ["CMakeLists.txt"]
     generators = "cmake"
 
     settings = "os", "arch", "compiler", "build_type"
-    options = {"shared": [True, False], "fPIC": [True, False]}
-    default_options = {"shared": False, "fPIC": True}
+    options = {"shared": [True, False]}
+    default_options = {"shared": False}
 
     _source_subfolder = "source_subfolder"
     _build_subfolder = "build_subfolder"
     _cmake = None
 
-    requires = (
-        "zlib/1.2.11"
-    )
-
-    def config_options(self):
-        if self.settings.os == 'Windows':
-            del self.options.fPIC
+    def configure(self):
+        minimal_cpp_standard = "11"
+        if self.settings.compiler.cppstd:
+            tools.check_min_cppstd(self, minimal_cpp_standard)
+        minimal_version = {
+            "gcc": "4.7",
+            "clang": "3.2",
+            "apple-clang": "10",
+            "Visual Studio": "12"
+        }
+        compiler = str(self.settings.compiler)
+        if compiler not in minimal_version:
+            self.output.warn(
+                "%s recipe lacks information about the %s compiler standard version support." % (self.name, compiler))
+            self.output.warn(
+                "%s requires a compiler that supports at least C++%s." % (self.name, minimal_cpp_standard))
+            return
+        version = tools.Version(self.settings.compiler.version)
+        if version < minimal_version[compiler]:
+            raise ConanInvalidConfiguration("%s requires a compiler that supports at least C++%s." % (self.name, minimal_cpp_standard))
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version])
@@ -36,7 +50,7 @@ class LibnameConan(ConanFile):
     def _configure_cmake(self):
         if not self._cmake:
             self._cmake = CMake(self)
-            self._cmake.definitions["BUILD_TESTS"] = False  # example
+            self._cmake.definitions["BUILD_SHARED_LIBS"] = self.options.shared
             self._cmake.configure(build_folder=self._build_subfolder)
         return self._cmake
 
@@ -48,15 +62,7 @@ class LibnameConan(ConanFile):
         self.copy(pattern="LICENSE", dst="licenses", src=self._source_subfolder)
         cmake = self._configure_cmake()
         cmake.install()
-        # If the CMakeLists.txt has a proper install method, the steps below may be redundant
-        # If so, you can just remove the lines below
-        include_folder = os.path.join(self._source_subfolder, "include")
-        self.copy(pattern="*", dst="include", src=include_folder)
-        self.copy(pattern="*.dll", dst="bin", keep_path=False)
-        self.copy(pattern="*.lib", dst="lib", keep_path=False)
-        self.copy(pattern="*.a", dst="lib", keep_path=False)
-        self.copy(pattern="*.so*", dst="lib", keep_path=False)
-        self.copy(pattern="*.dylib", dst="lib", keep_path=False)
+        tools.rmdir(os.path.join(self.package_folder, "lib", "cmake"))
 
     def package_info(self):
         self.cpp_info.libs = tools.collect_libs(self)
